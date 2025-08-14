@@ -7,8 +7,6 @@ from langchain_community.embeddings import SentenceTransformerEmbeddings
 from langchain.docstore.document import Document
 from langchain.schema.output_parser import StrOutputParser
 
-# LLM providers
-from langchain_openai import ChatOpenAI  # needs openai>=1.0 and langchain_openai
 from langchain_community.llms import HuggingFaceHub
 
 load_dotenv()
