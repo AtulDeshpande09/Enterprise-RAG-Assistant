@@ -1,5 +1,10 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+token = os.getenv("NGROK_AUTH_TOKEN")
 
 model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 
@@ -45,6 +50,8 @@ def run():
 Thread(target=run).start()
 
 from pyngrok import ngrok
+
+ngrok.set_auth_token(token )
 
 public_url = ngrok.connect(8000)
 
