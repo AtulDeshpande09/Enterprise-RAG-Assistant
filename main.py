@@ -1,58 +1,43 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM
-import torch
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
-token = os.getenv("NGROK_AUTH_TOKEN")
-
-model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-model = AutoModelForCausalLM.from_pretrained(
-    model_name,
-    torch_dtype=torch.float16,
-    device_map="auto"
-)
-
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+import ollama
 
-app = FastAPI()
+app = FastAPI(title="Phi-4 Mini Core Node")
+templates = Jinja2Templates(directory="templates")
 
-class Prompt(BaseModel):
-    text: str
+class ChatPayload(BaseModel):
+    prompt: str
 
-@app.post("/chat")
-def chat(prompt: Prompt):
+@app.get("/", response_class=HTMLResponse)
+async def read_root(request: Request):
+    # Notice we explicitly add context=
+    return templates.TemplateResponse(request=request, name="index.html")
 
-    inputs = tokenizer(prompt.text, return_tensors="pt").to(model.device)
 
-    outputs = model.generate(
-        **inputs,
-        max_new_tokens=100
-    )
+@app.post("/api/chat")
+async def chat_stream(payload: ChatPayload):
+    async def event_generator():
+        try:
+            # Connect directly to the local C++ model runner
+            response = await ollama.AsyncClient().chat(
+                model='phi4-mini',
+                messages=[{'role': 'user', 'content': payload.prompt}],
+                stream=True
+            )
+            async for chunk in response:
+                content = chunk.get('message', {}).get('content', '')
+                if content:
+                    yield f"data: {content}\n\n"
+        except Exception as e:
+            yield f"data: [Error: {str(e)}]\n\n"
 
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-    return {"response": response}
-
-import nest_asyncio
-import uvicorn
-from threading import Thread
-
-nest_asyncio.apply()
-
-def run():
+if __name__ == "__main__":
+    import uvicorn
+    # 0.0.0.0 listens to all local home network connections on port 8000
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
-Thread(target=run).start()
-
-from pyngrok import ngrok
-
-ngrok.set_auth_token(token )
-
-public_url = ngrok.connect(8000)
-
-print(public_url)

@@ -1,8 +1,5 @@
-transformers
-transformers
-accelerate
-torch
 fastapi
 uvicorn
-pyngrok
-nest_asyncio
+ollama
+pydantic
+torch

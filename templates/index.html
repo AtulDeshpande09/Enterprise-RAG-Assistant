@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phi-4 Mini Core Node</title>
+    <script src="[https://cdn.jsdelivr.net/npm/marked/marked.min.js](https://cdn.jsdelivr.net/npm/marked/marked.min.js)"></script>
+    <style>
+        :root {
+            --bg-main: #0d1117;
+            --bg-surface: #161b22;
+            --bg-bubble-ai: #21262d;
+            --border: #30363d;
+            --text-main: #c9d1d9;
+            --text-muted: #8b949e;
+            --accent: #2ea44f;
+            --accent-hover: #3fb950;
+            --error: #f85149;
+            --max-width: 840px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg-main);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--bg-surface);
+            z-index: 10;
+        }
+
+        .status-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: var(--accent);
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .status-dot::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+            opacity: 0.4;
+            top: 0;
+            left: 0;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.4; }
+            70% { transform: scale(2.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 0; }
+        }
+
+        h2 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: -0.2px;
+        }
+
+        #chat-window {
+            flex: 1;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+        }
+
+        #chat-container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: 32px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+            min-height: calc(100% - 64px);
+        }
+
+        /* Custom Scrollbar */
+        #chat-window::-webkit-scrollbar { width: 8px; }
+        #chat-window::-webkit-scrollbar-track { background: transparent; }
+        #chat-window::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+        #chat-window::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+        .message {
+            display: flex;
+            flex-direction: column;
+            animation: fadeIn 0.25s ease-out;
+            max-width: 100%;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .user-message { 
+            align-self: flex-end; 
+            max-width: 85%;
+        }
+        
+        .ai-message { 
+            align-self: flex-start; 
+            width: 100%;
+        }
+
+        .message-content {
+            padding: 14px 20px;
+            border-radius: 16px;
+            line-height: 1.6;
+            font-size: 15px;
+            word-wrap: break-word;
+        }
+
+        .user-message .message-content {
+            background: var(--accent);
+            color: #ffffff;
+            border-bottom-right-radius: 4px;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(46, 164, 79, 0.2);
+            white-space: pre-wrap;
+        }
+
+        .ai-message .message-content {
+            background: var(--bg-bubble-ai);
+            border: 1px solid var(--border);
+            border-bottom-left-radius: 4px;
+        }
+
+        /* Markdown Styling */
+        .markdown-body p { margin: 0 0 16px 0; }
+        .markdown-body p:last-child { margin-bottom: 0; }
+        .markdown-body h1, .markdown-body h2, .markdown-body h3 { margin: 24px 0 12px 0; color: #fff; font-weight: 600; }
+        .markdown-body h1 { font-size: 1.4em; }
+        .markdown-body h2 { font-size: 1.25em; }
+        .markdown-body h3 { font-size: 1.1em; }
+        
+        /* Code Block Container */
+        .code-container {
+            position: relative;
+            margin: 16px 0;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            background: var(--bg-main);
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: flex-end;
+            background: rgba(255,255,255,0.03);
+            padding: 6px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .copy-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .copy-btn:hover { background: var(--border); color: #fff; }
+
+        .markdown-body pre { 
+            margin: 0;
+            padding: 16px; 
+            overflow-x: auto; 
+        }
+        .markdown-body code { 
+            font-family: ui-monospace, SFMono-Regular, SF Pro Text, Menlo, Monaco, Consolas, monospace; 
+            background: rgba(255, 255, 255, 0.1); 
+            padding: 3px 6px; 
+            border-radius: 6px; 
+            font-size: 0.88em; 
+            color: #ff79c6;
+        }
+        .markdown-body pre code { background: none; padding: 0; font-size: 0.85em; color: #e1e1e6; white-space: pre; }
+        .markdown-body ul, .markdown-body ol { padding-left: 24px; margin: 12px 0; }
+        .markdown-body li { margin-bottom: 6px; }
+        .markdown-body a { color: var(--accent-hover); text-decoration: none; }
+        .markdown-body a:hover { text-decoration: underline; }
+        .markdown-body blockquote {
+            border-left: 4px solid var(--accent);
+            margin: 16px 0;
+            padding: 4px 16px;
+            color: var(--text-muted);
+            background: rgba(255,255,255,0.01);
+        }
+
+        .input-wrap {
+            border-top: 1px solid var(--border);
+            background: var(--bg-surface);
+            padding: 20px 24px;
+        }
+
+        .input-area {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            position: relative;
+            background: var(--bg-main);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 8px 12px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .input-area:focus-within {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px var(--accent);
+        }
+
+        textarea {
+            flex: 1;
+            padding: 8px 4px;
+            background: transparent;
+            color: #fff;
+            font-size: 15px;
+            font-family: inherit;
+            border: none;
+            outline: none;
+            resize: none;
+            max-height: 200px;
+            min-height: 24px;
+            line-height: 1.5;
+        }
+
+        textarea:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        button#send-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            background: var(--accent);
+            color: #fff;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button#send-btn:hover { background: var(--accent-hover); }
+        button#send-btn:active { transform: scale(0.97); }
+        button#send-btn:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; transform: none; }
+
+        .empty-state {
+            color: var(--text-muted);
+            text-align: center;
+            margin: auto;
+            font-size: 15px;
+            max-width: 400px;
+            line-height: 1.6;
+        }
+
+        /* Thinking indicator */
+        .thinking {
+            display: inline-flex;
+            gap: 4px;
+            align-items: center;
+        }
+        .thinking span {
+            width: 6px;
+            height: 6px;
+            background-color: var(--text-muted);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .thinking span:nth-child(1) { animation-delay: -0.32s; }
+        .thinking span:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="status-container">
+            <div class="status-dot"></div>
+        </div>
+        <h2>Phi-4 Mini Local Node</h2>
+    </header>
+    
+    <div id="chat-window">
+        <div id="chat-container">
+            <div class="empty-state">
+                <p style="font-size: 1.25rem; color:#fff; margin-bottom:8px; font-weight:500;">Local AI Hub Engine Ready</p>
+                Connected to LAN. Ask your laptop anything...
+            </div>
+        </div>
+    </div>
+
+    <div class="input-wrap">
+        <div class="input-area">
+            <textarea id="prompt-input" rows="1" placeholder="Type a message... (Press Enter to send, Shift+Enter for new line)"></textarea>
+            <button id="send-btn" onclick="sendPrompt()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        // Custom markdown configurations wrapped safely inside a validation step
+        function initMarked() {
+            if (typeof marked !== 'undefined') {
+                marked.use({
+                    gfm: true,
+                    breaks: true,
+                    renderer: {
+                        code(token) {
+                            const rawCode = typeof token === 'object' ? token.text : token;
+                            return `<div class="code-container">
+                                <div class="code-header"><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                                <pre><code>${escapeHtml(rawCode)}</code></pre>
+                            </div>`;
+                        }
+                    }
+                });
+            } else {
+                setTimeout(initMarked, 50);
+            }
+        }
+        initMarked();
+
+        // Auto-growing Textarea Handling
+        const textarea = document.getElementById('prompt-input');
+        textarea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight - 16) + 'px';
+        });
+
+        textarea.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendPrompt();
+            }
+        });
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function copyCode(button) {
+            const codeBlock = button.parentElement.nextElementSibling.querySelector('code');
+            const codeText = codeBlock.innerText;
+            
+            navigator.clipboard.writeText(codeText).then(() => {
+                button.textContent = 'Copied!';
+                button.style.color = 'var(--accent-hover)';
+                setTimeout(() => { 
+                    button.textContent = 'Copy';
+                    button.style.color = 'var(--text-muted)';
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+            });
+        }
+
+        // Sanitizer function to ensure ``` always stands completely isolated on its own line
+        function formatMarkdownSafely(text) {
+            if (!text) return '';
+            
+            // 1. Force a newline BEFORE backticks if there isn't one already
+            let cleaned = text.replace(/(?<!\n)```/g, '\n```');
+            
+            // 2. Force a newline AFTER backticks if conversational text is glued to it mid-stream
+            cleaned = cleaned.replace(/
+http://googleusercontent.com/immersive_entry_chip/0
